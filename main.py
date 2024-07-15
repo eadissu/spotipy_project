@@ -1,9 +1,10 @@
+# Source = https://www.youtube.com/watch?v=olY_2MW4Eik&list=LL&index=4
+
 import requests
 import urllib.parse
 from datetime import datetime
 
-from flask import Flask, redirect, request, jsonify, session
-
+from flask import Flask, redirect, request, jsonify, session, render_template, url_for
 
 app = Flask(__name__)
 app.secret_key = '53d355f8-571a-4590-a310-1f95579440851'
@@ -17,13 +18,17 @@ TOKEN_URL = 'https://accounts.spotify.com/api/token'
 API_BASE_URL = 'https://api.spotify.com/v1/'
 
 @app.route('/')
+def home():
+    return redirect(url_for('index'))
+
+@app.route('/index')
 def index():
-  return "<p>Welcome to my Spotify App<p> <a href='/login'>Login with Spotify</a>" # redierect to login end point
+    return render_template('index.html')  # Assuming you have an 'index.html' template
 
 # Login User
 @app.route('/login')
 def login():
-  scope = 'user-read-private user-read-email'
+  scope = 'user-read-private'
 
   params = {
     'client_id': CLIENT_ID,
@@ -64,11 +69,21 @@ def callback():
     session['refresh_token'] = token_info['refresh_token']
     session['expires_at'] = datetime.now().timestamp() + token_info['expires_in']
 
-    return redirect('/playlists')
+    return redirect('/index')
   
 
 # retrieves current user's playlists
-@app.route('/playlists')
+@app.route('/tracks')
+def tracks():
+
+  # get json of playlists
+  playlists_json = get_playlists()
+
+  # convert into tables!
+
+  return render_template("tracks.html", tracks = playlists_json)
+
+
 def get_playlists():
   
   # error logging in
@@ -85,9 +100,15 @@ def get_playlists():
   }
 
   response = requests.get(API_BASE_URL + 'me/playlists', headers=headers)
+
+  if response.status_code != 200:
+    print("FAILED!!!")
+  else:
+    print("Success??")
+    
   playlists = response.json()
 
-  return jsonify(playlists)
+  return playlists
 
 
 @app.route('/refresh-token')
