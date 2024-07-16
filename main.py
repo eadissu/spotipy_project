@@ -1,11 +1,10 @@
 # Source = https://www.youtube.com/watch?v=olY_2MW4Eik&list=LL&index=4
 
-import requests
 import urllib.parse
+import requests
+
 from datetime import datetime
-
 from flask import Flask, redirect, request, jsonify, session, render_template, url_for
-
 
 app = Flask(__name__)
 app.secret_key = '53d355f8-571a-4590-a310-1f95579440851'
@@ -22,20 +21,21 @@ API_BASE_URL = 'https://api.spotify.com/v1/'
 def home():
     return redirect(url_for('index'))
 
+
+@app.route('/index')
+def index():
+    return render_template('index.html')  # Assuming you have an 'index.html' template
+
 # For Auto Deployment !
 @app.route("/update_server", methods=['POST'])
 def webhook():
     if request.method == 'POST':
-        repo = git.Repo('/home/CHANGE_TO_PYTHON_ANYWHERE_USERNAME/CHANGE_TO_GITHUB_REPO_NAME')
+        repo = git.Repo('/home/eadissu/spotipy_project')
         origin = repo.remotes.origin
         origin.pull()
         return 'Updated PythonAnywhere successfully', 200
     else:
         return 'Wrong event type', 400
-
-@app.route('/index')
-def index():
-    return render_template('index.html')  # Assuming you have an 'index.html' template
 
 # Login User
 @app.route('/login')
@@ -47,7 +47,7 @@ def login():
     'response_type': 'code',
     'scope': scope,
     'redirect_uri': REDIRECT_URI,
-    'show_dialog': True # usually false -> for testing purposes
+    'show_dialog': False # usually False -> for testing purposes use True
   }
 
   auth_url = f"{AUTH_URL}?{urllib.parse.urlencode(params)}"
@@ -95,6 +95,12 @@ def tracks():
 
   return render_template("tracks.html", tracks = output)
 
+  playlists_json = get_playlists()
+
+  # convert into tables!
+
+  return render_template("tracks.html", tracks = playlists_json)
+
 
 def get_playlists():
   
@@ -122,6 +128,15 @@ def get_playlists():
     toreturn += response.status_code 
 
   return toreturn
+
+  if response.status_code != 200:
+    print("FAILED!!!")
+  else:
+    print("Success??")
+    
+  playlists = response.json()
+
+  return playlists
 
 
 @app.route('/refresh-token')
