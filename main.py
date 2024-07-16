@@ -2,12 +2,14 @@
 
 import urllib.parse
 import requests
+import uuid
 
 from datetime import datetime
 from flask import Flask, redirect, request, jsonify, session, render_template, url_for
 
+
 app = Flask(__name__)
-app.secret_key = '53d355f8-571a-4590-a310-1f95579440851'
+app.secret_key = str(uuid.uuid4())
 
 CLIENT_ID='8d7ad77d655b4509a54d8f842b409e2e'
 CLIENT_SECRET='fe0c23212bfe46858fc51a15c1fa6606'
