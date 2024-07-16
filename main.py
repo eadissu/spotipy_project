@@ -3,6 +3,7 @@
 import urllib.parse
 import requests
 import uuid
+import base64
 
 from datetime import datetime
 from flask import Flask, redirect, request, jsonify, session, render_template, url_for
@@ -15,7 +16,7 @@ CLIENT_ID='8d7ad77d655b4509a54d8f842b409e2e'
 CLIENT_SECRET='fe0c23212bfe46858fc51a15c1fa6606'
 REDIRECT_URI='http://localhost:5000/callback'
 
-AUTH_URL = 'https://accounts.spotify.com/authorize'
+AUTH_URL = 'https://accounts.spotify.com/authorize?'
 TOKEN_URL = 'https://accounts.spotify.com/api/token'
 API_BASE_URL = 'https://api.spotify.com/v1/'
 
@@ -49,10 +50,11 @@ def login():
     'response_type': 'code',
     'scope': scope,
     'redirect_uri': REDIRECT_URI,
-    'show_dialog': False # usually False -> for testing purposes use True
+    'show_dialog': True, # usually False -> for testing purposes use True
+    'state': app.secret_key
   }
 
-  auth_url = f"{AUTH_URL}?{urllib.parse.urlencode(params)}"
+  auth_url = f"{AUTH_URL}{urllib.parse.urlencode(params)}"
 
   return redirect(auth_url)
 
@@ -64,27 +66,59 @@ def callback():
   if 'error' in request.args:
     return jsonify({"error": request.args['error']})
   
+  
   # login was successful
   if 'code' in request.args:
 
-    # build a request body to get access token
-    req_body = {
-      'code': request.args['code'],
-      'grant_type': 'authorization_code',
-      'redirect_uri': REDIRECT_URI,
-      'client_id': CLIENT_ID,
-      'client_secret': CLIENT_SECRET
-    }
+    code = request.args.get('code')
+    if 'state' in request.args:
 
-    response = requests.post(TOKEN_URL, data=req_body)
-    token_info = response.json()
+      # build a request body to get access token
+      auth_options = {
+        'url': TOKEN_URL, 
+        'data': {
+            'code': code,
+            'redirect_uri': REDIRECT_URI,
+            'grant_type': 'authorization_code'
+        },
+        'headers': {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': 'Basic ' + base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
+        }
+      }
+       
+      '''
+      
+      req_body = {
+        'code': request.args['code'],
+        'grant_type': 'authorization_code',
+        'redirect_uri': REDIRECT_URI,
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET
 
-    session['access_token'] = token_info['access_token']
-    session['refresh_token'] = token_info['refresh_token']
-    session['expires_at'] = datetime.now().timestamp() + token_info['expires_in']
+      }
+      
 
-    return redirect('/index')
+      response = requests.post(TOKEN_URL, data=req_body)
+      token_info = response.json()
+
+      session['access_token'] = token_info['access_token']
+      session['refresh_token'] = token_info['refresh_token']
+      session['expires_at'] = datetime.now().timestamp() + token_info['expires_in']
+
+      return redirect('/index')
+    '''
+      
+      session = requests.post(auth_options['url'], data=auth_options['data'], headers=auth_options['headers'])
   
+      if session.status_code == 200:
+        print(jsonify(session.json()))
+        return redirect('/index')
+      else:
+        return jsonify({'error': 'Failed to get access token'}), session.status_code
+      
+      
+
 
 # retrieves current user's playlists
 @app.route('/tracks')
@@ -97,27 +131,27 @@ def tracks():
 
   return render_template("tracks.html", tracks = output)
 
-  playlists_json = get_playlists()
-
-  # convert into tables!
-
-  return render_template("tracks.html", tracks = playlists_json)
-
-
 def get_playlists():
-  
+
+  access_token = session.get('access_token')
+
   # error logging in
-  if 'access_token' not in session:
-    return redirect('/login')
+  #if 'access_token' not in session:
+  #  return redirect('/login')
+  if not access_token:
+        return jsonify({'error': 'Access token is required'}), 400
+    
   
   # check if token has expired
-  if datetime.now().timestamp() > session['expires_at']:
-    return redirect('/refresh-token')
+  #if datetime.now().timestamp() > session['expires_at']:
+  #  return redirect('/refresh-token')
   
   # we're good to go atp
   headers = {
-    'Authorization': f"Bearer {session['access_token']}"
+    'Authorization': 'Bearer ' + access_token
   }
+
+
 
   response = requests.get(API_BASE_URL + 'me/playlists', headers=headers)
 
@@ -131,14 +165,6 @@ def get_playlists():
 
   return toreturn
 
-  if response.status_code != 200:
-    print("FAILED!!!")
-  else:
-    print("Success??")
-    
-  playlists = response.json()
-
-  return playlists
 
 
 @app.route('/refresh-token')
